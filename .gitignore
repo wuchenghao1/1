@@ -1,0 +1,7 @@
+# Byte-compiled / cache files
+__pycache__/
+outputs/
+*.pt
+*.pth
+.env
+.ipynb_checkpoints
