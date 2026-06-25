@@ -10,7 +10,7 @@ from src.model import create_model
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model_name_or_path', type=str, default='distilbert-base-uncased')
+    parser.add_argument('--model_name_or_path', type=str, default='hfl/chinese-roberta-wwm-ext')
     parser.add_argument('--dataset', type=str, default='imdb', help='Hugging Face dataset name or "local" for CSV')
     parser.add_argument('--local_csv', type=str, default=None, help='本地 CSV 路径（如果使用本地数据）')
     parser.add_argument('--output_dir', type=str, default='outputs')
@@ -20,6 +20,8 @@ def main():
     parser.add_argument('--max_length', type=int, default=256)
     parser.add_argument('--sample_size', type=int, default=None, help='仅用于快速调试，设置训练样本数')
     args = parser.parse_args()
+
+    os.makedirs(args.output_dir, exist_ok=True)
 
     dataset_name = None if args.local_csv else args.dataset
     ds, tokenizer = load_and_tokenize(dataset_name, local_csv=args.local_csv, model_name=args.model_name_or_path, max_length=args.max_length, sample_size=args.sample_size)
@@ -75,6 +77,42 @@ def main():
 
     trainer.train()
     trainer.save_model(args.output_dir)
+
+    # 评估并保存混淆矩阵与分类报告
+    try:
+        import numpy as np
+        from sklearn.metrics import confusion_matrix, classification_report
+        import pandas as pd
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        print('Running evaluation on test set...')
+        preds_output = trainer.predict(ds['test'])
+        preds = np.argmax(preds_output.predictions, axis=1)
+        labels = preds_output.label_ids
+
+        cm = confusion_matrix(labels, preds)
+        report = classification_report(labels, preds, output_dict=True)
+
+        # 保存混淆矩阵图片
+        plt.figure(figsize=(6, 5))
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues')
+        plt.xlabel('Predicted')
+        plt.ylabel('True')
+        cm_path = os.path.join(args.output_dir, 'confusion_matrix.png')
+        plt.savefig(cm_path, bbox_inches='tight')
+        plt.close()
+
+        # 保存分类报告为 CSV
+        report_df = pd.DataFrame(report).transpose()
+        report_csv = os.path.join(args.output_dir, 'classification_report.csv')
+        report_df.to_csv(report_csv)
+
+        print(f'Evaluation artifacts saved: {cm_path}, {report_csv}')
+    except Exception as e:
+        print('Evaluation failed:', e)
 
 if __name__ == '__main__':
     main()

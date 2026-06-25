@@ -3,3 +3,5 @@ datasets>=2.13.0
 torch>=1.12.0
 scikit-learn>=1.0.0
 pandas
+matplotlib
+seaborn
